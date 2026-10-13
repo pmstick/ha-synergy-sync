@@ -1,5 +1,5 @@
 name: Synergy Sync
-version: "0.2.1"
+version: "0.3.0"
 slug: synergy_sync
 url: https://github.com/pmstick/ha-synergy-sync
 image: ghcr.io/pmstick/{arch}-ha-synergy-sync
@@ -23,6 +23,7 @@ options:
   supply_charge_cents_per_day: 116.0505
   feed_in_peak_cents: 10.0
   feed_in_offpeak_cents: 2.0
+  rate_history: []
 schema:
   service_id: str?
   initial_days: int(1,730)
@@ -30,3 +31,9 @@ schema:
   supply_charge_cents_per_day: float(0,)
   feed_in_peak_cents: float(0,)
   feed_in_offpeak_cents: float(0,)
+  rate_history:
+    - until: match(^\d{4}-\d{2}-\d{2}$)
+      usage_rate_cents: float(0,)
+      supply_charge_cents_per_day: float(0,)
+      feed_in_peak_cents: float(0,)
+      feed_in_offpeak_cents: float(0,)

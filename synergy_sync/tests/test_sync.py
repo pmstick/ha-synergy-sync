@@ -75,7 +75,7 @@ def test_flat_rate_plan_usage_column_is_detected():
 
 def test_import_cost_includes_usage_and_one_supply_charge_per_day():
     ivs = _day()
-    rows = stats.build_import_cost(ivs, usage_cents=32.3719, supply_cents_per_day=116.0505)
+    rows = stats.build_import_cost(ivs, _rates(usage=32.3719, supply=116.0505))
     assert len(rows) == 24
     usage_kwh = sum(i["consumption_kwh"] for i in ivs)
     expected = usage_kwh * 0.323719 + 1.160505
@@ -89,11 +89,40 @@ def test_import_cost_includes_usage_and_one_supply_charge_per_day():
 def test_export_credit_uses_debs_peak_window():
     mk = lambda h, kwh: {"timestamp": datetime(2026, 10, 1, h, 0), "consumption_kwh": 0.0, "export_kwh": kwh, "tariff_name": "ANYTIME"}
     ivs = [mk(14, 1.0), mk(15, 1.0), mk(20, 1.0), mk(21, 1.0)]
-    rows = stats.build_export_credit(ivs, peak_cents=10.0, offpeak_cents=2.0)
+    rows = stats.build_export_credit(ivs, _rates(peak=10.0, offpeak=2.0))
     assert [r["state"] for r in rows] == [0.02, 0.10, 0.10, 0.02]
     assert rows[-1]["sum"] == 0.24
 
 
 def test_money_metadata_uses_currency():
-    md = stats.money_metadata(stats.IMPORT_COST_ID, "Synergy grid import cost", "AUD")
+    md = stats.money_metadata(stats.IMPORT_COST_ID, "Synergy grid import cost")
     assert md["unit_of_measurement"] == "AUD" and md["has_sum"] and md["unit_class"] is None
+
+
+def _rates(usage=30.0, supply=100.0, peak=10.0, offpeak=2.0, until=None):
+    r = {"usage_rate_cents": usage, "supply_charge_cents_per_day": supply,
+         "feed_in_peak_cents": peak, "feed_in_offpeak_cents": offpeak}
+    return {**r, "until": until} if until else stats.RateSchedule(r)
+
+
+def test_rate_schedule_picks_period_by_date():
+    from datetime import date
+    current = {"usage_rate_cents": 32.0, "supply_charge_cents_per_day": 116.0,
+               "feed_in_peak_cents": 10.0, "feed_in_offpeak_cents": 2.0}
+    history = [_rates(usage=31.0, until="2026-06-30"), _rates(usage=29.0, until="2025-06-30")]  # unsorted on purpose
+    rs = stats.RateSchedule(current, history)
+    assert rs.for_day(date(2025, 1, 1))["usage_rate_cents"] == 29.0
+    assert rs.for_day(date(2025, 6, 30))["usage_rate_cents"] == 29.0
+    assert rs.for_day(date(2025, 7, 1))["usage_rate_cents"] == 31.0
+    assert rs.for_day(date(2026, 6, 30))["usage_rate_cents"] == 31.0
+    assert rs.for_day(date(2026, 7, 1))["usage_rate_cents"] == 32.0
+    assert rs.describe()[-1].startswith("from 2026-07-01")
+
+
+def test_cost_switches_rate_at_period_boundary():
+    mk = lambda d: {"timestamp": datetime(2026, 6, d, 10, 0), "consumption_kwh": 1.0, "export_kwh": 0.0, "tariff_name": "ANYTIME"}
+    current = {"usage_rate_cents": 40.0, "supply_charge_cents_per_day": 0.0,
+               "feed_in_peak_cents": 10.0, "feed_in_offpeak_cents": 2.0}
+    rs = stats.RateSchedule(current, [_rates(usage=20.0, supply=0.0, until="2026-06-29")])
+    rows = stats.build_import_cost([mk(29), mk(30)], rs)
+    assert [r["state"] for r in rows] == [0.2, 0.4]

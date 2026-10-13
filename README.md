@@ -87,9 +87,31 @@ Chromium needs a few hundred MB while a sync runs. On Unraid: **VMs** → click 
 | `feed_in_peak_cents` | `10.0` | DEBS feed-in rate 3pm–9pm, c/kWh |
 | `feed_in_offpeak_cents` | `2.0` | DEBS feed-in rate at other times, c/kWh |
 
-Costs are recalculated for the whole history on every sync, so after changing a rate,
-click **Sync now** and the new rate applies to all past days too. The supply charge is
-added to the first hour of each day. Costs use your HA currency (Settings → System → General).
+The four rate options are your **current** rates (the defaults are Synergy's Home Plan A1 and
+DEBS rates effective 1 July 2026). Check them against your bill.
+
+### Rates that changed over time
+Synergy's rates usually change on 1 July. To cost older days at the rates in force back then,
+add earlier periods under `rate_history` on the add-on's **Configuration** tab (⋮ → **Edit in
+YAML**). `until` is the **last day** those rates applied; days after every `until` use the
+current rates. The figures below are placeholders; take the real ones from an old bill:
+
+```yaml
+rate_history:
+  - until: "2026-06-30"         # 1 Jul 2025 – 30 Jun 2026
+    usage_rate_cents: 31.5
+    supply_charge_cents_per_day: 113.0
+    feed_in_peak_cents: 10.0
+    feed_in_offpeak_cents: 2.0
+```
+
+Costs are recalculated for the whole history on every sync, so after changing any rate click
+**Sync now** to re-cost all past days. Each sync logs which rates applied to which dates. The
+supply charge is added to the first hour of each day.
+
+### Currency
+Costs are imported in **AUD**. The Energy dashboard shows HA's own currency, so set
+**Settings → System → General → Currency** to **Australian dollar** (HA defaults to Euro).
 
 ## Reminder / trigger from an automation
 The add-on accepts `sync` on stdin. That starts a sync and posts a persistent notification
