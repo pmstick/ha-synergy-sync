@@ -71,18 +71,18 @@ class SyncJob:
         _LOGGER.info(line)
         self.log.append(f"{datetime.now():%H:%M:%S}  {line}")
 
-    def start(self, notify: bool = False) -> bool:
+    def start(self, notify: bool = False, from_day: date | None = None) -> bool:
         if self.running:
             return False
         self.log.clear()
-        self.task = asyncio.create_task(self._run(notify))
+        self.task = asyncio.create_task(self._run(notify, from_day))
         return True
 
     def cancel(self):
         if self.running:
             self.task.cancel()
 
-    async def _run(self, notify: bool):
+    async def _run(self, notify: bool, from_day: date | None = None):
         opts = _options()
         client = SynergyBrowserClient(os.path.join(DATA_DIR, "browser-profile"))
         try:
@@ -115,7 +115,12 @@ class SyncJob:
 
             end = _perth_today() - timedelta(days=1)
             last = self.cache.last_day()
-            start = (last - timedelta(days=REFETCH_DAYS)) if last else end - timedelta(days=int(opts["initial_days"]) - 1)
+            if from_day:  # one-off history fetch requested from the panel
+                start = from_day
+            elif last:
+                start = last - timedelta(days=REFETCH_DAYS)
+            else:
+                start = end - timedelta(days=int(opts["initial_days"]) - 1)
             self.say(f"Fetching {start} → {end}")
             intervals = await client.get_range(
                 service_id, start, end,
@@ -221,7 +226,17 @@ async def status(request: web.Request) -> web.Response:
 
 
 async def sync(request: web.Request) -> web.Response:
-    started = request.app["job"].start()
+    from_day = None
+    if request.can_read_body:
+        body = await request.json()
+        if body.get("from"):
+            try:
+                from_day = date.fromisoformat(body["from"])
+            except ValueError:
+                return web.json_response({"error": "Invalid date"}, status=400)
+            if not (date(2015, 1, 1) <= from_day < _perth_today()):
+                return web.json_response({"error": "Date must be in the past"}, status=400)
+    started = request.app["job"].start(from_day=from_day)
     return web.json_response({"started": started})
 
 
@@ -327,6 +342,8 @@ button, a.btn { font:inherit; border:0; border-radius:8px; padding:8px 18px; cur
 button:disabled { opacity:.5; cursor:default; }
 #state { font-weight:600; } .error { color:var(--err); }
 #viewer { display:none; } #viewer iframe { width:100%; aspect-ratio:1280/800; border:1px solid var(--line); border-radius:8px; background:#000; }
+input[type=date] { font:inherit; padding:7px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--fg); color-scheme:light dark; }
+details summary { cursor:pointer; color:var(--accent); margin-top:14px; }
 pre { margin:0; max-height:260px; overflow:auto; font-size:12.5px; color:var(--muted); white-space:pre-wrap; }
 </style></head>
 <body>
@@ -343,6 +360,15 @@ pre { margin:0; max-height:260px; overflow:auto; font-size:12.5px; color:var(--m
     <button class="secondary" id="cancel" style="display:none">Cancel</button>
     <a class="btn secondary" href="synergy-halfhourly.csv">Download half-hourly CSV</a>
   </div>
+  <details>
+    <summary>Fetch older history</summary>
+    <div class="row" style="margin-top:10px">
+      <label class="k" for="from">Fetch everything from</label>
+      <input type="date" id="from" value="2026-01-01">
+      <button class="secondary" id="backfill">Fetch history</button>
+    </div>
+    <div class="k" style="margin-top:6px">One-off: fills in older days and re-imports. Normal syncs carry on from the latest day.</div>
+  </details>
 </div>
 <div class="card" id="viewer">
   <div class="k" style="margin-bottom:8px">Log in to My Synergy below (MFA code included). This window closes by itself once you're in.</div>
@@ -360,6 +386,7 @@ async function refresh() {
     $("state").textContent = LABELS[s.state] || s.state;
     $("state").className = s.state === "error" ? "v error" : "v";
     $("sync").disabled = s.running;
+    $("backfill").disabled = s.running;
     $("cancel").style.display = s.running ? "" : "none";
     const showVnc = s.state === "waiting_login";
     $("viewer").style.display = showVnc ? "block" : "none";
@@ -375,6 +402,12 @@ async function refresh() {
   } catch (e) {}
 }
 $("sync").onclick = async () => { await fetch("sync", {method:"POST"}); refresh(); };
+$("backfill").onclick = async () => {
+  const r = await fetch("sync", {method:"POST", headers:{"Content-Type":"application/json"},
+                                 body: JSON.stringify({from: $("from").value})});
+  if (!r.ok) alert((await r.json()).error || "Couldn't start");
+  refresh();
+};
 $("cancel").onclick = async () => { await fetch("cancel", {method:"POST"}); refresh(); };
 refresh(); setInterval(refresh, 2000);
 </script>

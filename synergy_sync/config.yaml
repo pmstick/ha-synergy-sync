@@ -1,5 +1,5 @@
 name: Synergy Sync
-version: "0.2.0"
+version: "0.2.1"
 slug: synergy_sync
 url: https://github.com/pmstick/ha-synergy-sync
 image: ghcr.io/pmstick/{arch}-ha-synergy-sync

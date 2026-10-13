@@ -19,6 +19,10 @@ Chromium window on a virtual display and shows it in the **Synergy Sync** sideba
    - `synergy:grid_import` — **Synergy grid import** (kWh/hour)
    - `synergy:grid_export` — **Synergy grid export** (kWh/hour)
 
+**Fetching older history:** under **Fetch older history** in the panel, pick a start date
+(e.g. 1 Jan 2026) and click **Fetch history**. It's a one-off: it fills in everything from that
+date and re-imports, while normal **Sync now** runs keep fetching only the days since the last sync.
+
 HA long-term statistics are hourly, so each pair of half-hours is summed. The full
 half-hourly data is available from **Download half-hourly CSV** in the panel. Synergy data is
 usually a day behind, so sync fetches up to yesterday. Re-syncing is safe; totals never double.
