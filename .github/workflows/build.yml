@@ -1,0 +1,64 @@
+name: Build add-on image
+
+on:
+  push:
+    branches: [main]
+    paths: ["synergy_sync/**", ".github/workflows/build.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pytest -r synergy_sync/requirements.txt
+      - run: python -m pytest -q synergy_sync/tests
+        env:
+          PYTHONPATH: synergy_sync
+
+  build:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read add-on version
+        id: meta
+        run: echo "version=$(sed -n 's/^version: *\"\{0,1\}\([^\"]*\)\"\{0,1\}$/\1/p' synergy_sync/config.yaml)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: synergy_sync
+          push: true
+          build-args: |
+            BUILD_FROM=ghcr.io/home-assistant/${{ matrix.arch }}-base-debian:bookworm
+            BUILD_ARCH=${{ matrix.arch }}
+            BUILD_VERSION=${{ steps.meta.outputs.version }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.arch }}-ha-synergy-sync:${{ steps.meta.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.arch }}-ha-synergy-sync:latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.licenses=Elastic-2.0
+            io.hass.type=addon
+            io.hass.arch=${{ matrix.arch }}
+            io.hass.version=${{ steps.meta.outputs.version }}
+            io.hass.name=Synergy Sync
