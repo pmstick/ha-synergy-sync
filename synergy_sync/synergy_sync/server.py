@@ -33,7 +33,14 @@ REFETCH_DAYS = 3  # re-fetch the last few cached days in case Synergy filled gap
 
 def _options() -> dict:
     path = os.path.join(DATA_DIR, "options.json")
-    opts = {"service_id": "", "initial_days": 90}
+    opts = {
+        "service_id": "",
+        "initial_days": 90,
+        "usage_rate_cents": 32.3719,
+        "supply_charge_cents_per_day": 116.0505,
+        "feed_in_peak_cents": 10.0,
+        "feed_in_offpeak_cents": 2.0,
+    }
     if os.path.exists(path):
         with open(path) as f:
             opts.update(json.load(f))
@@ -154,13 +161,27 @@ class SyncJob:
             await client.close()
 
     async def _import(self):
+        opts = _options()
         intervals = self.cache.intervals()
         imp = stats.build_stats(intervals, "consumption_kwh")
         exp = stats.build_stats(intervals, "export_kwh")
+        cost = stats.build_import_cost(
+            intervals, float(opts["usage_rate_cents"]), float(opts["supply_charge_cents_per_day"]))
+        credit = stats.build_export_credit(
+            intervals, float(opts["feed_in_peak_cents"]), float(opts["feed_in_offpeak_cents"]))
         self.say(f"Importing {len(imp)} hourly rows into Home Assistant…")
         async with HomeAssistant() as ha:
+            currency = (await ha.call({"type": "get_config"})).get("currency") or "AUD"
             await ha.import_statistics(stats.metadata(stats.IMPORT_ID, "Synergy grid import"), imp)
             await ha.import_statistics(stats.metadata(stats.EXPORT_ID, "Synergy grid export"), exp)
+            await ha.import_statistics(
+                stats.money_metadata(stats.IMPORT_COST_ID, "Synergy grid import cost", currency), cost)
+            await ha.import_statistics(
+                stats.money_metadata(stats.EXPORT_CREDIT_ID, "Synergy grid export credit", currency), credit)
+        self.say(
+            f"Costs at {opts['usage_rate_cents']}c/kWh + {opts['supply_charge_cents_per_day']}c/day supply; "
+            f"feed-in {opts['feed_in_peak_cents']}c peak / {opts['feed_in_offpeak_cents']}c off-peak ({currency})"
+        )
 
     async def _notify(self, title: str, message: str):
         try:

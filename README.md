@@ -54,13 +54,16 @@ Chromium needs a few hundred MB while a sync runs. On Unraid: **VMs** → click 
    `initial_days` (90 by default).
 
 ### 5. Add it to the Energy dashboard
-1. **Settings → Dashboards → Energy**.
-2. Under **Electricity grid**: **Add consumption** → **Synergy grid import**, and
-   **Add return** → **Synergy grid export**.
-3. Optionally enter your Synergy tariff prices.
-4. Open the Energy dashboard on **yesterday** (Synergy data is a day behind). You should see
-   hourly grid bars next to solar, and the Energy distribution card splits home usage between
-   solar and grid.
+1. **Settings → Dashboards → Energy** → **Electricity grid** → add a grid connection.
+2. **Energy imported from grid** → **Synergy grid import**.
+3. **Energy exported to grid** → **Synergy grid export**.
+4. **Cost tracking** → **Use an entity tracking the total costs** → **Synergy grid import cost**.
+   For export, pick **Synergy grid export credit** as the entity tracking total compensation.
+   (The price options are greyed out because these are imported statistics, not live sensors.)
+5. **Type of power measurement** → **No power sensor** (Synergy has no live data).
+6. **Save**, then open the Energy dashboard on **yesterday or earlier** (Synergy data is a day
+   behind). You should see hourly grid bars next to solar, costs, and the Energy distribution
+   card splitting home usage between solar and grid.
 
 ### Troubleshooting
 - **Synergy Sync doesn't appear in the store:** refresh, or **⋮ → Check for updates**. Then
@@ -75,6 +78,14 @@ Chromium needs a few hundred MB while a sync runs. On Unraid: **VMs** → click 
 |---|---|---|
 | `service_id` | *(blank)* | Synergy service to use; blank = first active service on the account |
 | `initial_days` | `90` | How far back the first sync goes (max 730) |
+| `usage_rate_cents` | `32.3719` | Home Plan A1 usage rate, c/kWh (incl. GST) — check your bill |
+| `supply_charge_cents_per_day` | `116.0505` | Daily supply charge, c/day; set `0` to leave it out of costs |
+| `feed_in_peak_cents` | `10.0` | DEBS feed-in rate 3pm–9pm, c/kWh |
+| `feed_in_offpeak_cents` | `2.0` | DEBS feed-in rate at other times, c/kWh |
+
+Costs are recalculated for the whole history on every sync, so after changing a rate,
+click **Sync now** and the new rate applies to all past days too. The supply charge is
+added to the first hour of each day. Costs use your HA currency (Settings → System → General).
 
 ## Reminder / trigger from an automation
 The add-on accepts `sync` on stdin. That starts a sync and posts a persistent notification

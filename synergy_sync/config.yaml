@@ -1,5 +1,5 @@
 name: Synergy Sync
-version: "0.1.2"
+version: "0.2.0"
 slug: synergy_sync
 url: https://github.com/pmstick/ha-synergy-sync
 image: ghcr.io/pmstick/{arch}-ha-synergy-sync
@@ -19,6 +19,14 @@ stdin: true
 options:
   service_id: ""
   initial_days: 90
+  usage_rate_cents: 32.3719
+  supply_charge_cents_per_day: 116.0505
+  feed_in_peak_cents: 10.0
+  feed_in_offpeak_cents: 2.0
 schema:
   service_id: str?
   initial_days: int(1,730)
+  usage_rate_cents: float(0,)
+  supply_charge_cents_per_day: float(0,)
+  feed_in_peak_cents: float(0,)
+  feed_in_offpeak_cents: float(0,)

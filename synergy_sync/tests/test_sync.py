@@ -71,3 +71,29 @@ def test_flat_rate_plan_usage_column_is_detected():
     noon = by_ts[datetime(2026, 10, 1, 12, 0)]
     assert noon["consumption_kwh"] == 0.1 and noon["export_kwh"] == 0.8  # cost column ignored
     assert by_ts[datetime(2026, 10, 2, 0, 30)]["tariff_name"] == "UNKNOWN"  # no reading yet
+
+
+def test_import_cost_includes_usage_and_one_supply_charge_per_day():
+    ivs = _day()
+    rows = stats.build_import_cost(ivs, usage_cents=32.3719, supply_cents_per_day=116.0505)
+    assert len(rows) == 24
+    usage_kwh = sum(i["consumption_kwh"] for i in ivs)
+    expected = usage_kwh * 0.323719 + 1.160505
+    assert abs(rows[-1]["sum"] - expected) < 0.01
+    # supply charge lands in the day's first hour only
+    first_hour_usage = ivs[0]["consumption_kwh"] + ivs[1]["consumption_kwh"]
+    assert abs(rows[0]["state"] - (first_hour_usage * 0.323719 + 1.160505)) < 0.001
+    assert rows[0]["start"] == "2026-08-01T16:00:00+00:00"
+
+
+def test_export_credit_uses_debs_peak_window():
+    mk = lambda h, kwh: {"timestamp": datetime(2026, 10, 1, h, 0), "consumption_kwh": 0.0, "export_kwh": kwh, "tariff_name": "ANYTIME"}
+    ivs = [mk(14, 1.0), mk(15, 1.0), mk(20, 1.0), mk(21, 1.0)]
+    rows = stats.build_export_credit(ivs, peak_cents=10.0, offpeak_cents=2.0)
+    assert [r["state"] for r in rows] == [0.02, 0.10, 0.10, 0.02]
+    assert rows[-1]["sum"] == 0.24
+
+
+def test_money_metadata_uses_currency():
+    md = stats.money_metadata(stats.IMPORT_COST_ID, "Synergy grid import cost", "AUD")
+    assert md["unit_of_measurement"] == "AUD" and md["has_sum"] and md["unit_class"] is None

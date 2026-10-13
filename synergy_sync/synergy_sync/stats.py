@@ -49,3 +49,69 @@ def build_stats(intervals: list[dict], field: str) -> list[dict]:
             "sum": round(running, 3),
         })
     return rows
+
+
+# --- costs ---------------------------------------------------------------------
+
+IMPORT_COST_ID = "synergy:grid_import_cost"
+EXPORT_CREDIT_ID = "synergy:grid_export_credit"
+
+FEED_IN_PEAK_START = 15  # DEBS peak window 3pm–9pm (local hour, inclusive start)
+FEED_IN_PEAK_END = 21
+
+
+def money_metadata(statistic_id: str, name: str, currency: str) -> dict:
+    return {
+        "source": "synergy",
+        "statistic_id": statistic_id,
+        "name": name,
+        "unit_of_measurement": currency,
+        "unit_class": None,
+        "has_sum": True,
+        "has_mean": False,
+        "mean_type": 0,
+    }
+
+
+def _rows_from_hourly(buckets: "OrderedDict[datetime, float]") -> list[dict]:
+    rows, running = [], 0.0
+    for hour, amount in buckets.items():
+        running += amount
+        rows.append({
+            "start": hour.astimezone(timezone.utc).isoformat(),
+            "state": round(amount, 4),
+            "sum": round(running, 4),
+        })
+    return rows
+
+
+def import_cost_buckets(intervals: list[dict], usage_cents: float, supply_cents_per_day: float) -> "OrderedDict[datetime, float]":
+    """Dollars per local hour: usage × rate, plus the daily supply charge in each day's first hour."""
+    buckets: OrderedDict[datetime, float] = OrderedDict()
+    charged_days = set()
+    for iv in sorted(intervals, key=lambda i: i["timestamp"]):
+        hour = iv["timestamp"].replace(minute=0, second=0, microsecond=0, tzinfo=PERTH)
+        amount = iv["consumption_kwh"] * usage_cents / 100
+        if hour.date() not in charged_days:
+            charged_days.add(hour.date())
+            amount += supply_cents_per_day / 100
+        buckets[hour] = buckets.get(hour, 0.0) + amount
+    return buckets
+
+
+def export_credit_buckets(intervals: list[dict], peak_cents: float, offpeak_cents: float) -> "OrderedDict[datetime, float]":
+    """Dollars per local hour earned for export, at the DEBS peak/off-peak rate."""
+    buckets: OrderedDict[datetime, float] = OrderedDict()
+    for iv in sorted(intervals, key=lambda i: i["timestamp"]):
+        hour = iv["timestamp"].replace(minute=0, second=0, microsecond=0, tzinfo=PERTH)
+        rate = peak_cents if FEED_IN_PEAK_START <= hour.hour < FEED_IN_PEAK_END else offpeak_cents
+        buckets[hour] = buckets.get(hour, 0.0) + iv["export_kwh"] * rate / 100
+    return buckets
+
+
+def build_import_cost(intervals, usage_cents, supply_cents_per_day) -> list[dict]:
+    return _rows_from_hourly(import_cost_buckets(intervals, usage_cents, supply_cents_per_day))
+
+
+def build_export_credit(intervals, peak_cents, offpeak_cents) -> list[dict]:
+    return _rows_from_hourly(export_credit_buckets(intervals, peak_cents, offpeak_cents))
