@@ -1,5 +1,11 @@
-#!/usr/bin/env bash
+#!/usr/bin/with-contenv bash
+# with-contenv restores the container environment (incl. SUPERVISOR_TOKEN), which
+# s6-overlay's /init otherwise strips before running CMD.
 set -e
+
+export DISPLAY=:99
+export PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+export NOVNC_DIR=/usr/share/novnc
 
 # Virtual display Chromium draws on, and a VNC server the panel's noVNC viewer
 # reaches through the add-on's own /websockify bridge (localhost only).
