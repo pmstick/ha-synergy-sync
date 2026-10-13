@@ -55,3 +55,19 @@ def test_metadata_has_required_fields():
     md = stats.metadata(stats.IMPORT_ID, "Synergy grid import")
     assert md["statistic_id"].startswith("synergy:") and md["source"] == "synergy"
     assert md["has_sum"] and md["mean_type"] == 0 and md["unit_class"] == "energy"
+
+
+def test_flat_rate_plan_usage_column_is_detected():
+    # Home Plan A1 rows don't use the time-of-use columns; usage is under another name.
+    resp = {"ChartData": {"Response": [
+        {"BillingStatus": "Billed", "ANYTIME": "0.412", "VAL_SOLAR": "0.000", "VAL_TIME": "0000", "VAL_DAY": "2026-10-01"},
+        {"BillingStatus": "Billed", "ANYTIME": "0.100", "VAL_SOLAR": "0.800", "VAL_TIME": "1200", "VAL_DAY": "2026-10-01", "Total_Cost": "1.23"},
+        {"BillingStatus": "Unbilled", "VAL_SOLAR": "", "VAL_TIME": "0030", "VAL_DAY": "2026-10-02"},
+    ]}}
+    ivs = parse_halfhourly_response(resp)
+    by_ts = {i["timestamp"]: i for i in ivs}
+    assert by_ts[datetime(2026, 10, 1, 0, 0)]["consumption_kwh"] == 0.412
+    assert by_ts[datetime(2026, 10, 1, 0, 0)]["tariff_name"] == "ANYTIME"
+    noon = by_ts[datetime(2026, 10, 1, 12, 0)]
+    assert noon["consumption_kwh"] == 0.1 and noon["export_kwh"] == 0.8  # cost column ignored
+    assert by_ts[datetime(2026, 10, 2, 0, 30)]["tariff_name"] == "UNKNOWN"  # no reading yet

@@ -20,7 +20,7 @@ from urllib.parse import parse_qs
 from playwright.async_api import async_playwright
 
 from .aura import build_apex_action, build_chartdata_input, build_ip_action, build_message, parse_ip_result
-from .chartdata import parse_halfhourly_response
+from .chartdata import column_summary, parse_halfhourly_response
 
 PORTAL_URL = "https://my.synergy.net.au/s/"
 AURA_PATH = "/s/sfsites/aura"
@@ -42,6 +42,8 @@ class SynergyBrowserClient:
         self._aura_token: str | None = None
         self._page_uri: str = "/s/"
         self._request_id = 1000
+        # Column name -> row count across all fetched rows (diagnostics).
+        self.columns_seen: dict[str, int] = {}
 
     async def start(self):
         """Launch the browser (headed, on $DISPLAY) and begin capturing Aura credentials."""
@@ -151,6 +153,8 @@ class SynergyBrowserClient:
         result = await self._call_ip(
             "MyAccount_ChartData", build_chartdata_input(service_id, start, end)
         )
+        for col, n in column_summary(result).items():
+            self.columns_seen[col] = self.columns_seen.get(col, 0) + n
         return parse_halfhourly_response(result)
 
     async def get_range(

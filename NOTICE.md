@@ -12,7 +12,7 @@ This project is distributed under the same Elastic License 2.0 (see [LICENSE](LI
 | File in this repo | Source file | Changes |
 |---|---|---|
 | `synergy_sync/synergy_sync/aura.py` | `src/aura.py` | Copied unchanged except for an added notice header |
-| `synergy_sync/synergy_sync/chartdata.py` | `src/chartdata.py` | Modified: trimmed to the half-hourly parser only (rate/feed-in code removed) |
+| `synergy_sync/synergy_sync/chartdata.py` | `src/chartdata.py` | Modified: trimmed to the half-hourly parser only (rate/feed-in code removed); usage columns detected generically so flat-rate plans work |
 | `synergy_sync/synergy_sync/browser_client.py` | `src/browser_client.py` | Modified: persistent browser profile, virtual-display window options; `get_day` and `finalize_login` removed |
 | `synergy_sync/tests/fixtures/chartdata_halfhourly_day.json` | `tests/fixtures/chartdata_halfhourly_day.json` | Copied unchanged |
 

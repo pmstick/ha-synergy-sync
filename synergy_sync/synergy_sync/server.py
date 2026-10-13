@@ -115,10 +115,16 @@ class SyncJob:
                 progress=lambda d, t, day: self.say(f"  fetched {d}/{t} days (to {day})"),
             )
             await client.close()
+            self.say("Columns seen: " + ", ".join(f"{c}×{n}" for c, n in sorted(client.columns_seen.items())))
 
             stored = self.cache.merge(intervals)
             self.cache.save()
             self.say(f"Got {len(intervals)} half-hour slots, {stored} with readings; cache now {len(self.cache)} slots")
+            if intervals and not stored:
+                raise RuntimeError(
+                    "Synergy returned half-hours but no usage column was recognised "
+                    "(see 'Columns seen' above) — nothing imported"
+                )
 
             self.state = "importing"
             await self._import()
